@@ -297,8 +297,19 @@ const getSelectedBackfills = () => {
     return selectedBackfills.value.map(idx => backfillSuggestions.value[idx]);
 };
 
-// Expose selected backfills
-defineExpose({ getSelectedBackfills });
+// Reset internal state for new entry
+const resetState = () => {
+    userEditedEventType.value = false;
+    userEditedDate.value = false;
+    userEditedPeople.value = false;
+    backfillSuggestions.value = [];
+    selectedBackfills.value = [];
+    pendingDetections.value = null;
+    showConfirmation.value = false;
+};
+
+// Expose methods
+defineExpose({ getSelectedBackfills, resetState });
 
 // Confirmation dialog functions
 const showDetectionConfirmation = (detections) => {

@@ -42,11 +42,23 @@ const form = useForm({
 
 // Reset form to initial state
 const resetForm = () => {
-    form.reset();
+    // Explicitly clear all fields
+    form.title = '';
+    form.content = '';
+    form.event_date = new Date().toISOString().split('T')[0];
+    form.event_end_date = '';
     form.event_type = 'story';
+    form.location = '';
+    form.people_involved = [];
+    form.member_ids = [];
+    form.family_surname = '';
     form.visibility = 'immediate_family';
     form.is_published = true;
-    form.event_date = new Date().toISOString().split('T')[0];
+    form.clearErrors();
+
+    // Reset the form component's internal state
+    formRef.value?.resetState?.();
+
     activeTab.value = 'quick';
 };
 
