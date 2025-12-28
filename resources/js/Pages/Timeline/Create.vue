@@ -1,10 +1,13 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import TimelineEntryForm from '@/Components/Timeline/TimelineEntryForm.vue';
 import QuickEntry from '@/Components/Timeline/QuickEntry.vue';
-import { useForm, Link, router } from '@inertiajs/vue3';
+import { useForm, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+
+const page = usePage();
+const flashMessage = computed(() => page.props.flash?.message);
 
 const props = defineProps({
     eventTypes: Object,
@@ -37,6 +40,16 @@ const form = useForm({
     is_published: true,
 });
 
+// Reset form to initial state
+const resetForm = () => {
+    form.reset();
+    form.event_type = 'story';
+    form.visibility = 'immediate_family';
+    form.is_published = true;
+    form.event_date = new Date().toISOString().split('T')[0];
+    activeTab.value = 'quick';
+};
+
 const submit = async () => {
     // Get selected backfill entries from the form component
     const backfills = formRef.value?.getSelectedBackfills?.() || [];
@@ -46,6 +59,23 @@ const submit = async () => {
         ...data,
         backfill_entries: backfills.map(b => b.prefill),
     })).post(route('timeline.store'));
+};
+
+const submitAndAddAnother = async () => {
+    // Get selected backfill entries from the form component
+    const backfills = formRef.value?.getSelectedBackfills?.() || [];
+
+    // Submit the main form with backfill entries and flag to create another
+    form.transform((data) => ({
+        ...data,
+        backfill_entries: backfills.map(b => b.prefill),
+        create_another: true,
+    })).post(route('timeline.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            resetForm();
+        },
+    });
 };
 
 // Match a person string against family members - returns member ID if found
@@ -136,6 +166,25 @@ const applyParsedData = (parsed) => {
 
         <div class="py-12">
             <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
+                <!-- Flash Message -->
+                <Transition
+                    enter-active-class="transition ease-out duration-300"
+                    enter-from-class="opacity-0 transform -translate-y-2"
+                    enter-to-class="opacity-100 transform translate-y-0"
+                    leave-active-class="transition ease-in duration-200"
+                    leave-from-class="opacity-100 transform translate-y-0"
+                    leave-to-class="opacity-0 transform -translate-y-2"
+                >
+                    <div v-if="flashMessage" class="mb-4 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <p class="text-sm text-green-700 dark:text-green-300">{{ flashMessage }}</p>
+                        </div>
+                    </div>
+                </Transition>
+
                 <!-- Tab Navigation -->
                 <div class="mb-4 flex space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                     <button
@@ -231,6 +280,7 @@ const applyParsedData = (parsed) => {
                         :family-members="familyMembers"
                         submit-label="Create Entry"
                         @submit="submit"
+                        @submit-and-another="submitAndAddAnother"
                     />
                 </div>
             </div>

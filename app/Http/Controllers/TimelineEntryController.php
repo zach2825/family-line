@@ -109,6 +109,12 @@ class TimelineEntryController extends Controller
             $message .= ' Also created ' . count($createdBackfills) . ' related ' . (count($createdBackfills) === 1 ? 'record' : 'records') . '.';
         }
 
+        // If creating another, redirect back to create page
+        if ($request->boolean('create_another')) {
+            return redirect()->route('timeline.create')
+                ->with('message', $message);
+        }
+
         return redirect()->route('timeline.show', $entry)
             ->with('message', $message);
     }

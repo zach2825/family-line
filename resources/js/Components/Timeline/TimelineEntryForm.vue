@@ -21,7 +21,7 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(['submit', 'backfill-selected']);
+const emit = defineEmits(['submit', 'submit-and-another', 'backfill-selected']);
 
 // Track if user has manually edited fields (don't override their changes)
 const userEditedEventType = ref(false);
@@ -663,7 +663,18 @@ watch(() => props.form?.title, (newTitle, oldTitle) => {
             </div>
         </Transition>
 
-        <div class="flex justify-end">
+        <div class="flex justify-end space-x-3">
+            <button
+                type="button"
+                @click="$emit('submit-and-another')"
+                :disabled="form.processing"
+                class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-amber-600 dark:border-amber-500 rounded-md font-semibold text-xs text-amber-600 dark:text-amber-400 uppercase tracking-widest hover:bg-amber-50 dark:hover:bg-gray-700 focus:bg-amber-50 dark:focus:bg-gray-700 active:bg-amber-100 dark:active:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150 disabled:opacity-50"
+            >
+                <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Save & Add Another
+            </button>
             <PrimaryButton
                 class="bg-amber-600 hover:bg-amber-700 focus:bg-amber-700 active:bg-amber-800 focus:ring-amber-500"
                 :disabled="form.processing"
