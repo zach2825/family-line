@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "zach2825/family-line",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "A family timeline and history tracking application.",
+    "keywords": ["family", "timeline", "genealogy", "history"],
     "license": "MIT",
     "require": {
         "php": "^8.2",
