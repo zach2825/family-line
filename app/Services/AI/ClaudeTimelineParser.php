@@ -28,12 +28,12 @@ You are a helpful assistant that parses natural language descriptions of family 
 
 Extract the following information from the user's input:
 - title: A clear, concise title for the event
-- event_type: One of: birth, death, marriage, milestone, story, photo, other
-- event_date: The date of the event in YYYY-MM-DD format. If a birthday with age is mentioned (e.g., "50th birthday"), calculate the birth date from today's date minus the age.
+- event_type: One of: birth, death, marriage, milestone, story, photo, document, memory, tradition (use "story" as default if uncertain)
+- event_date: The date of the event in YYYY-MM-DD format. Use today's date if "today" is mentioned. If a birthday with age is mentioned (e.g., "50th birthday"), calculate the birth date from today's date minus the age.
 - event_end_date: End date if it's a range (YYYY-MM-DD format), otherwise null
 - location: Where the event took place, if mentioned
 - content: Any additional story or description details
-- people_involved: An array of people mentioned (names or relationships like "Mom", "Grandpa", etc.)
+- people_involved: An array of people mentioned (names or relationships like "Mom", "Grandpa", etc.). Include people whose names appear with possessive forms (e.g., "Karla's house" should include "Karla")
 - missing_fields: An array of field names that you couldn't determine and should ask about
 - confidence: A number from 0 to 1 indicating how confident you are in the parsed data
 
@@ -128,10 +128,12 @@ PROMPT;
 
     protected function normalizeEventType(string $type): string
     {
-        $valid = ['birth', 'death', 'marriage', 'milestone', 'story', 'photo', 'other'];
+        // Valid types must match TimelineEntry::EVENT_TYPES keys
+        $valid = ['birth', 'death', 'marriage', 'milestone', 'story', 'photo', 'document', 'memory', 'tradition'];
         $type = strtolower(trim($type));
 
-        return in_array($type, $valid) ? $type : 'other';
+        // Return the type if valid, otherwise default to 'story'
+        return in_array($type, $valid) ? $type : 'story';
     }
 
     protected function getTodayDate(): string

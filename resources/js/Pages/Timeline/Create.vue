@@ -52,27 +52,34 @@ const submit = async () => {
 const matchPersonToFamilyMember = (personName) => {
     // Clean up the name - remove possessives and trim
     let lowerName = personName.toLowerCase().trim();
-    lowerName = lowerName.replace(/'s$/i, ''); // Remove possessives like "Mom's" -> "Mom"
+
+    // Create name variations to check
+    const variations = [lowerName];
+    // Remove possessives: "Mom's" -> "Mom"
+    if (lowerName.endsWith("'s")) {
+        variations.push(lowerName.slice(0, -2));
+    }
+    // Remove trailing 's' without apostrophe: "karlas" -> "karla"
+    if (lowerName.endsWith('s') && lowerName.length > 3) {
+        variations.push(lowerName.slice(0, -1));
+    }
 
     for (const member of props.familyMembers) {
         const firstName = member.first_name?.toLowerCase();
         const lastName = member.last_name?.toLowerCase();
         const nickname = member.nickname?.toLowerCase();
-
-        // Exact matches on first name or nickname
-        if (firstName === lowerName || nickname === lowerName) {
-            return member.id;
-        }
-
-        // Full name match
         const fullName = `${firstName} ${lastName || ''}`.trim();
-        if (fullName === lowerName) {
-            return member.id;
-        }
 
-        // Partial first name match (3+ chars)
-        if (firstName && lowerName.length >= 3 && firstName.startsWith(lowerName)) {
-            return member.id;
+        for (const name of variations) {
+            // Exact matches on first name, nickname, or full name
+            if (firstName === name || nickname === name || fullName === name) {
+                return member.id;
+            }
+
+            // Partial first name match (3+ chars)
+            if (firstName && name.length >= 3 && firstName.startsWith(name)) {
+                return member.id;
+            }
         }
     }
 
@@ -177,7 +184,6 @@ const applyParsedData = (parsed) => {
                     </div>
 
                     <QuickEntry
-                        v-model="form"
                         @parsed="applyParsedData"
                         @submit="applyParsedData"
                     />

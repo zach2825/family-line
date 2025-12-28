@@ -37,16 +37,13 @@ const checkingBackfill = ref(false);
 const pendingDetections = ref(null);
 const showConfirmation = ref(false);
 
-// Computed for member_ids with getter/setter for reactivity
-const memberIds = computed({
-    get: () => props.form?.member_ids || [],
-    set: (val) => {
-        if (props.form) {
-            props.form.member_ids = [...val];
-        }
-        userEditedPeople.value = true;
+// Handler for updating member_ids
+const updateMemberIds = (val) => {
+    if (props.form) {
+        props.form.member_ids = [...val];
     }
-});
+    userEditedPeople.value = true;
+};
 
 // Common family member keywords to detect
 const familyKeywords = {
@@ -130,7 +127,20 @@ const matchFamilyMembers = (title) => {
     const matchedNames = [];
 
     // Extract all potential name words (2+ chars)
-    const words = lowerTitle.split(/\s+/).map(w => w.replace(/[^a-zA-Z]/g, '').toLowerCase()).filter(w => w.length >= 2);
+    const rawWords = lowerTitle.split(/\s+/)
+        .map(w => w.replace(/[^a-zA-Z']/g, '').toLowerCase())
+        .filter(w => w.length >= 2);
+
+    // Create variations: original word + word without possessive 's
+    const words = [];
+    for (const w of rawWords) {
+        words.push(w.replace(/'/g, '')); // "mom's" -> "moms"
+        if (w.endsWith("'s")) {
+            words.push(w.slice(0, -2)); // "mom's" -> "mom"
+        } else if (w.endsWith("s") && w.length > 3) {
+            words.push(w.slice(0, -1)); // "moms" -> "mom" (but not "as" -> "a")
+        }
+    }
 
     for (const member of props.familyMembers) {
         const firstName = member.first_name?.toLowerCase();
@@ -311,10 +321,9 @@ const applyDetections = () => {
         }
         // Apply matched family member IDs - user clicked Apply so always apply these
         if (pendingDetections.value.member_ids?.length > 0) {
-            const existingIds = memberIds.value || [];
+            const existingIds = props.form.member_ids || [];
             const newIds = [...new Set([...existingIds, ...pendingDetections.value.member_ids])];
-            // Update via computed setter (handles form prop update)
-            memberIds.value = newIds;
+            updateMemberIds(newIds);
         }
     }
     pendingDetections.value = null;
@@ -538,8 +547,8 @@ watch(() => props.form?.title, (newTitle, oldTitle) => {
         <div>
             <InputLabel value="Family Members Involved" />
             <FamilyMemberSelector
-                :model-value="memberIds"
-                @update:model-value="(val) => memberIds = val"
+                :model-value="form.member_ids || []"
+                @update:model-value="updateMemberIds"
                 :family-members="familyMembers"
                 class="mt-1"
             />

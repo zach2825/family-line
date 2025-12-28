@@ -123,6 +123,23 @@ class LocalTimelineParser implements TimelineParserInterface
 
     protected function parseDate(string $text): ?string
     {
+        // Relative dates: today, yesterday, last week
+        if (preg_match('/\btoday\b/i', $text)) {
+            return now()->format('Y-m-d');
+        }
+        if (preg_match('/\byesterday\b/i', $text)) {
+            return now()->subDay()->format('Y-m-d');
+        }
+        if (preg_match('/\blast\s+week\b/i', $text)) {
+            return now()->subWeek()->format('Y-m-d');
+        }
+        if (preg_match('/\blast\s+month\b/i', $text)) {
+            return now()->subMonth()->format('Y-m-d');
+        }
+        if (preg_match('/\blast\s+year\b/i', $text)) {
+            return now()->subYear()->format('Y-m-d');
+        }
+
         // Pattern: Xth birthday, Xst anniversary, etc.
         if (preg_match('/(\d+)(?:st|nd|rd|th)\s*(?:birthday|bday|anniversary)/', $text, $matches)) {
             $years = (int) $matches[1];
@@ -186,14 +203,16 @@ class LocalTimelineParser implements TimelineParserInterface
 
         // Extract capitalized names (proper nouns)
         $words = preg_split('/\s+/', $text);
-        $skipWords = ['The', 'And', 'For', 'With', 'Our', 'Their', 'His', 'Her', 'Day', 'Party', 'Birthday', 'Wedding', 'Anniversary', 'First', 'Last', 'In', 'At', 'On'];
+        $skipWords = ['The', 'And', 'For', 'With', 'Our', 'Their', 'His', 'Her', 'Day', 'Party', 'Birthday', 'Wedding', 'Anniversary', 'First', 'Last', 'In', 'At', 'On', 'Had', 'Was', 'Were', 'Today', 'Yesterday', 'BBQ', 'House'];
 
         foreach ($words as $word) {
             $cleanWord = preg_replace('/[^a-zA-Z]/', '', $word);
-            if (strlen($cleanWord) > 2
-                && ctype_upper($cleanWord[0])
-                && !in_array($cleanWord, $skipWords)) {
-                $people[] = $cleanWord;
+            // Handle possessives: "Karla's" or "Karlas" -> "Karla"
+            if (preg_match("/^([A-Z][a-z]+)(?:'?s)?$/", $cleanWord, $matches)) {
+                $name = $matches[1];
+                if (strlen($name) > 2 && !in_array($name, $skipWords)) {
+                    $people[] = $name;
+                }
             }
         }
 

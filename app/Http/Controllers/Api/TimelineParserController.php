@@ -7,9 +7,13 @@ use App\Http\Controllers\Controller;
 use App\Models\TimelineEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class TimelineParserController extends Controller
 {
+    // Cache TTL in seconds (1 hour)
+    private const CACHE_TTL = 3600;
+
     public function __construct(
         protected TimelineParserInterface $parser
     ) {}
@@ -23,12 +27,18 @@ class TimelineParserController extends Controller
             'text' => 'required|string|max:2000',
         ]);
 
+        $text = $request->input('text');
+        $cacheKey = 'timeline_parse:' . md5($text);
+
         try {
-            $result = $this->parser->parse($request->input('text'));
+            $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($text) {
+                return $this->parser->parse($text);
+            });
 
             return response()->json([
                 'success' => true,
                 'data' => $result,
+                'cached' => Cache::has($cacheKey),
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -49,15 +59,19 @@ class TimelineParserController extends Controller
             'missing_fields' => 'required|array',
         ]);
 
+        $currentData = $request->input('current_data');
+        $missingFields = $request->input('missing_fields');
+        $cacheKey = 'timeline_followup:' . md5(json_encode($currentData) . json_encode($missingFields));
+
         try {
-            $result = $this->parser->askFollowUp(
-                $request->input('current_data'),
-                $request->input('missing_fields')
-            );
+            $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($currentData, $missingFields) {
+                return $this->parser->askFollowUp($currentData, $missingFields);
+            });
 
             return response()->json([
                 'success' => true,
                 'data' => $result,
+                'cached' => Cache::has($cacheKey),
             ]);
         } catch (\Exception $e) {
             return response()->json([
