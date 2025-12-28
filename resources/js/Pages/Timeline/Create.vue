@@ -9,13 +9,17 @@ import axios from 'axios';
 const props = defineProps({
     eventTypes: Object,
     visibilityOptions: Object,
-    hasAiEnabled: {
+    hasApiKey: {
         type: Boolean,
         default: false,
     },
+    familyMembers: {
+        type: Array,
+        default: () => [],
+    },
 });
 
-const activeTab = ref('form'); // 'form' or 'quick'
+const activeTab = ref('quick'); // 'form' or 'quick' - default to quick for new entries
 const showAiHelp = ref(false);
 const formRef = ref(null);
 
@@ -27,6 +31,7 @@ const form = useForm({
     event_type: 'story',
     location: '',
     people_involved: [],
+    member_ids: [],
     family_surname: '',
     visibility: 'immediate_family',
     is_published: true,
@@ -43,6 +48,37 @@ const submit = async () => {
     })).post(route('timeline.store'));
 };
 
+// Match a person string against family members - returns member ID if found
+const matchPersonToFamilyMember = (personName) => {
+    // Clean up the name - remove possessives and trim
+    let lowerName = personName.toLowerCase().trim();
+    lowerName = lowerName.replace(/'s$/i, ''); // Remove possessives like "Mom's" -> "Mom"
+
+    for (const member of props.familyMembers) {
+        const firstName = member.first_name?.toLowerCase();
+        const lastName = member.last_name?.toLowerCase();
+        const nickname = member.nickname?.toLowerCase();
+
+        // Exact matches on first name or nickname
+        if (firstName === lowerName || nickname === lowerName) {
+            return member.id;
+        }
+
+        // Full name match
+        const fullName = `${firstName} ${lastName || ''}`.trim();
+        if (fullName === lowerName) {
+            return member.id;
+        }
+
+        // Partial first name match (3+ chars)
+        if (firstName && lowerName.length >= 3 && firstName.startsWith(lowerName)) {
+            return member.id;
+        }
+    }
+
+    return null;
+};
+
 const applyParsedData = (parsed) => {
     if (parsed.title) form.title = parsed.title;
     if (parsed.event_type) form.event_type = parsed.event_type;
@@ -52,6 +88,23 @@ const applyParsedData = (parsed) => {
     if (parsed.content) form.content = parsed.content;
     if (parsed.people_involved?.length) {
         form.people_involved = [...new Set([...form.people_involved, ...parsed.people_involved])];
+
+        // Try to match detected people to family members
+        const matchedIds = [];
+        for (const person of parsed.people_involved) {
+            const memberId = matchPersonToFamilyMember(person);
+            if (memberId && !form.member_ids.includes(memberId)) {
+                matchedIds.push(memberId);
+            }
+        }
+        if (matchedIds.length > 0) {
+            form.member_ids = [...new Set([...form.member_ids, ...matchedIds])];
+        }
+    }
+
+    // Also handle if parsed data directly includes member_ids
+    if (parsed.member_ids?.length) {
+        form.member_ids = [...new Set([...form.member_ids, ...parsed.member_ids])];
     }
 
     // Switch to form view to show/edit results
@@ -129,8 +182,8 @@ const applyParsedData = (parsed) => {
                         @submit="applyParsedData"
                     />
 
-                    <!-- AI Setup Help -->
-                    <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <!-- AI Setup Help - only show when API key is not configured -->
+                    <div v-if="!hasApiKey" class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                         <button
                             @click="showAiHelp = !showAiHelp"
                             class="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -169,6 +222,7 @@ const applyParsedData = (parsed) => {
                         :form="form"
                         :event-types="eventTypes"
                         :visibility-options="visibilityOptions"
+                        :family-members="familyMembers"
                         submit-label="Create Entry"
                         @submit="submit"
                     />

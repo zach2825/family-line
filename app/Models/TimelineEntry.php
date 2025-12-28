@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Venturecraft\Revisionable\RevisionableTrait;
 
@@ -69,6 +70,13 @@ class TimelineEntry extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function familyMembers(): BelongsToMany
+    {
+        return $this->belongsToMany(FamilyMember::class, 'family_member_timeline_entry')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
     public function scopeForTeam($query, $teamId)
     {
         return $query->where('team_id', $teamId);
@@ -106,6 +114,13 @@ class TimelineEntry extends Model
     public function scopeOrderedByDate($query, $direction = 'desc')
     {
         return $query->orderBy('event_date', $direction);
+    }
+
+    public function scopeForMember($query, $memberId)
+    {
+        return $query->whereHas('familyMembers', function ($q) use ($memberId) {
+            $q->where('family_members.id', $memberId);
+        });
     }
 
     public function getEventTypeLabelAttribute(): string

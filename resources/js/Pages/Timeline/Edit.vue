@@ -7,16 +7,21 @@ const props = defineProps({
     entry: Object,
     eventTypes: Object,
     visibilityOptions: Object,
+    familyMembers: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const form = useForm({
     title: props.entry.title,
     content: props.entry.content || '',
-    event_date: props.entry.event_date || '',
-    event_end_date: props.entry.event_end_date || '',
+    event_date: props.entry.event_date?.split('T')[0] || '',
+    event_end_date: props.entry.event_end_date?.split('T')[0] || '',
     event_type: props.entry.event_type,
     location: props.entry.location || '',
     people_involved: props.entry.people_involved || [],
+    member_ids: props.entry.family_members?.map(m => m.id) || [],
     family_surname: props.entry.family_surname || '',
     visibility: props.entry.visibility,
     is_published: props.entry.is_published,
@@ -47,6 +52,7 @@ const submit = () => form.put(route('timeline.update', props.entry.id));
                         :form="form"
                         :event-types="eventTypes"
                         :visibility-options="visibilityOptions"
+                        :family-members="familyMembers"
                         submit-label="Save Changes"
                         @submit="submit"
                     />

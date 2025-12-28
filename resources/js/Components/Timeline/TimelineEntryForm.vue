@@ -5,12 +5,16 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import PeopleSelector from '@/Components/Timeline/PeopleSelector.vue';
+import FamilyMemberSelector from '@/Components/Timeline/FamilyMemberSelector.vue';
 
 const props = defineProps({
     form: Object,
     eventTypes: Object,
     visibilityOptions: Object,
+    familyMembers: {
+        type: Array,
+        default: () => [],
+    },
     submitLabel: {
         type: String,
         default: 'Save',
@@ -32,6 +36,17 @@ const checkingBackfill = ref(false);
 // Auto-detection confirmation
 const pendingDetections = ref(null);
 const showConfirmation = ref(false);
+
+// Computed for member_ids with getter/setter for reactivity
+const memberIds = computed({
+    get: () => props.form?.member_ids || [],
+    set: (val) => {
+        if (props.form) {
+            props.form.member_ids = [...val];
+        }
+        userEditedPeople.value = true;
+    }
+});
 
 // Common family member keywords to detect
 const familyKeywords = {
@@ -90,12 +105,13 @@ const detectEventType = (title) => {
     return null;
 };
 
-// Extract people from title
+// Extract people from title - returns string names (only family keywords, not random capitalized words)
 const extractPeople = (title) => {
     const lowerTitle = title.toLowerCase();
     const foundPeople = new Set();
 
-    // Check for family keywords
+    // Only check for family keywords - don't try to detect capitalized words
+    // as that causes false positives like "Picked", "Flowers", etc.
     for (const [keyword, name] of Object.entries(familyKeywords)) {
         // Match whole words with possessive forms
         const regex = new RegExp(`\\b${keyword}(?:'s|s)?\\b`, 'i');
@@ -104,20 +120,45 @@ const extractPeople = (title) => {
         }
     }
 
-    // Also try to extract capitalized names (proper nouns)
-    const words = title.split(/\s+/);
-    for (const word of words) {
-        // Check if word starts with capital and isn't a common word
-        const cleanWord = word.replace(/[^a-zA-Z]/g, '');
-        if (cleanWord.length > 2 &&
-            cleanWord[0] === cleanWord[0].toUpperCase() &&
-            !['The', 'And', 'For', 'With', 'Our', 'Their', 'His', 'Her', 'Day', 'Party', 'Birthday', 'Wedding', 'Anniversary', 'First', 'Last'].includes(cleanWord)) {
-            // Could be a name
-            foundPeople.add(cleanWord);
+    return Array.from(foundPeople);
+};
+
+// Match text against actual family members from database - returns member IDs
+const matchFamilyMembers = (title) => {
+    const lowerTitle = title.toLowerCase();
+    const matchedIds = new Set();
+    const matchedNames = [];
+
+    // Extract all potential name words (2+ chars)
+    const words = lowerTitle.split(/\s+/).map(w => w.replace(/[^a-zA-Z]/g, '').toLowerCase()).filter(w => w.length >= 2);
+
+    for (const member of props.familyMembers) {
+        const firstName = member.first_name?.toLowerCase();
+        const lastName = member.last_name?.toLowerCase();
+        const nickname = member.nickname?.toLowerCase();
+
+        // Check if any word matches this member's name/nickname
+        for (const word of words) {
+            if (firstName && firstName === word) {
+                matchedIds.add(member.id);
+                matchedNames.push({ id: member.id, match: word, member });
+                break;
+            }
+            if (nickname && nickname === word) {
+                matchedIds.add(member.id);
+                matchedNames.push({ id: member.id, match: word, member });
+                break;
+            }
+            // Partial match for nicknames (barb -> Barbara)
+            if (firstName && firstName.length > 3 && firstName.startsWith(word) && word.length >= 3) {
+                matchedIds.add(member.id);
+                matchedNames.push({ id: member.id, match: word, member });
+                break;
+            }
         }
     }
 
-    return Array.from(foundPeople);
+    return { ids: Array.from(matchedIds), matches: matchedNames };
 };
 
 // Parse age/years from title and calculate date
@@ -186,14 +227,14 @@ const onPeopleChange = () => {
 };
 
 // Set default date to today if not set
-if (!props.form.event_date) {
+if (props.form && !props.form.event_date) {
     props.form.event_date = getTodayDate();
 }
 
 // Check for backfill suggestions when relevant fields change
 let backfillDebounce = null;
 const checkBackfillSuggestions = async () => {
-    if (!props.form.title || props.form.people_involved?.length === 0) {
+    if (!props.form || !props.form.title || props.form.people_involved?.length === 0) {
         backfillSuggestions.value = [];
         return;
     }
@@ -222,8 +263,9 @@ const checkBackfillSuggestions = async () => {
 
 // Watch for changes that might trigger backfill suggestions
 watch(
-    () => [props.form.title, props.form.event_type, props.form.event_date, props.form.people_involved],
+    () => [props.form?.title, props.form?.event_type, props.form?.event_date, props.form?.people_involved],
     () => {
+        if (!props.form) return;
         clearTimeout(backfillDebounce);
         backfillDebounce = setTimeout(checkBackfillSuggestions, 800);
     },
@@ -262,9 +304,17 @@ const applyDetections = () => {
         if (pendingDetections.value.event_date && !userEditedDate.value) {
             props.form.event_date = pendingDetections.value.event_date;
         }
+        // Apply family keyword detections (like "Mom" -> "Mom")
         if (pendingDetections.value.people?.length > 0 && !userEditedPeople.value) {
             const existing = props.form.people_involved || [];
             props.form.people_involved = [...new Set([...existing, ...pendingDetections.value.people])];
+        }
+        // Apply matched family member IDs - user clicked Apply so always apply these
+        if (pendingDetections.value.member_ids?.length > 0) {
+            const existingIds = memberIds.value || [];
+            const newIds = [...new Set([...existingIds, ...pendingDetections.value.member_ids])];
+            // Update via computed setter (handles form prop update)
+            memberIds.value = newIds;
         }
     }
     pendingDetections.value = null;
@@ -278,8 +328,8 @@ const skipDetections = () => {
 
 // Enhanced title watcher with confirmation
 let titleDebounce = null;
-watch(() => props.form.title, (newTitle, oldTitle) => {
-    if (!newTitle || newTitle.length < 5) return;
+watch(() => props.form?.title, (newTitle, oldTitle) => {
+    if (!props.form || !newTitle || newTitle.length < 5) return;
 
     clearTimeout(titleDebounce);
     titleDebounce = setTimeout(() => {
@@ -294,11 +344,24 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
             hasSignificantDetection = true;
         }
 
-        // Detect people
-        const people = extractPeople(newTitle);
-        const newPeople = people.filter(p => !(props.form.people_involved || []).includes(p));
-        if (newPeople.length > 0 && !userEditedPeople.value) {
-            detections.people = newPeople;
+        // Match against actual family members from database first
+        const familyMatches = matchFamilyMembers(newTitle);
+        const existingMemberIds = props.form.member_ids || [];
+        const newMemberIds = familyMatches.ids.filter(id => !existingMemberIds.includes(id));
+        if (newMemberIds.length > 0 && !userEditedPeople.value) {
+            detections.member_ids = newMemberIds;
+            detections.matched_members = familyMatches.matches.filter(m => newMemberIds.includes(m.id));
+            hasSignificantDetection = true;
+        }
+
+        // Only detect generic people keywords if we didn't find actual family members
+        // This avoids showing redundant "People: Mom" when we already show "Family Members: Jessica Admin [Mom]"
+        if (!detections.matched_members?.length) {
+            const people = extractPeople(newTitle);
+            const newPeople = people.filter(p => !(props.form.people_involved || []).includes(p));
+            if (newPeople.length > 0 && !userEditedPeople.value) {
+                detections.people = newPeople;
+            }
         }
 
         // Detect date from age
@@ -308,7 +371,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
             hasSignificantDetection = true;
         }
 
-        // Show confirmation for significant detections (date or type changes)
+        // Show confirmation for significant detections (date or type changes or matched members)
         if (hasSignificantDetection) {
             showDetectionConfirmation(detections);
         } else if (detections.people?.length > 0) {
@@ -321,7 +384,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
 </script>
 
 <template>
-    <form @submit.prevent="$emit('submit')" class="space-y-6">
+    <form v-if="form" @submit.prevent="$emit('submit')" class="space-y-6">
         <!-- Auto-Detection Confirmation Dialog -->
         <Transition
             enter-active-class="transition ease-out duration-200"
@@ -354,6 +417,14 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                                 </li>
                                 <li v-if="pendingDetections.people?.length > 0">
                                     <strong>People:</strong> {{ pendingDetections.people.join(', ') }}
+                                </li>
+                                <li v-if="pendingDetections.matched_members?.length > 0">
+                                    <strong>Family Members:</strong>
+                                    <span v-for="(m, idx) in pendingDetections.matched_members" :key="m.id">
+                                        {{ m.member.full_name || m.member.first_name }}
+                                        <span v-if="m.member.nickname" class="text-xs">[{{ m.member.nickname }}]</span>
+                                        <span v-if="idx < pendingDetections.matched_members.length - 1">, </span>
+                                    </span>
                                 </li>
                             </ul>
                         </div>
@@ -393,7 +464,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Smart fill: Include names, relationships (mom, grandpa), or ages (50th birthday) to auto-populate fields
             </p>
-            <InputError :message="form.errors.title" class="mt-2" />
+            <InputError :message="form.errors?.title" class="mt-2" />
         </div>
 
         <!-- Event Type & Date Row -->
@@ -410,7 +481,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                         {{ label }}
                     </option>
                 </select>
-                <InputError :message="form.errors.event_type" class="mt-2" />
+                <InputError :message="form.errors?.event_type" class="mt-2" />
             </div>
 
             <div>
@@ -422,7 +493,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                     type="date"
                     class="mt-1 block w-full"
                 />
-                <InputError :message="form.errors.event_date" class="mt-2" />
+                <InputError :message="form.errors?.event_date" class="mt-2" />
             </div>
 
             <div>
@@ -433,7 +504,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                     type="date"
                     class="mt-1 block w-full"
                 />
-                <InputError :message="form.errors.event_end_date" class="mt-2" />
+                <InputError :message="form.errors?.event_end_date" class="mt-2" />
             </div>
         </div>
 
@@ -447,7 +518,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                 class="mt-1 block w-full"
                 placeholder="e.g., Chicago, Illinois"
             />
-            <InputError :message="form.errors.location" class="mt-2" />
+            <InputError :message="form.errors?.location" class="mt-2" />
         </div>
 
         <!-- Content -->
@@ -460,19 +531,20 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                 class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-amber-500 dark:focus:border-amber-600 focus:ring-amber-500 dark:focus:ring-amber-600 rounded-md shadow-sm"
                 placeholder="Write your story, memory, or description here..."
             />
-            <InputError :message="form.errors.content" class="mt-2" />
+            <InputError :message="form.errors?.content" class="mt-2" />
         </div>
 
-        <!-- People Involved -->
+        <!-- Family Members Involved -->
         <div>
-            <InputLabel value="People Involved" />
-            <PeopleSelector
-                v-model="form.people_involved"
-                @update:modelValue="onPeopleChange"
+            <InputLabel value="Family Members Involved" />
+            <FamilyMemberSelector
+                :model-value="memberIds"
+                @update:model-value="(val) => memberIds = val"
+                :family-members="familyMembers"
                 class="mt-1"
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Auto-detected from title, or type a name and press Enter to add more
+                Search and select family members, or create new ones on the fly
             </p>
         </div>
 
@@ -490,7 +562,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Used for family-based permissions
                 </p>
-                <InputError :message="form.errors.family_surname" class="mt-2" />
+                <InputError :message="form.errors?.family_surname" class="mt-2" />
             </div>
 
             <div>
@@ -504,7 +576,7 @@ watch(() => props.form.title, (newTitle, oldTitle) => {
                         {{ label }}
                     </option>
                 </select>
-                <InputError :message="form.errors.visibility" class="mt-2" />
+                <InputError :message="form.errors?.visibility" class="mt-2" />
             </div>
         </div>
 

@@ -54,6 +54,9 @@ const logout = () => {
                                 <NavLink :href="route('timeline.index')" :active="route().current('timeline.*')">
                                     Timeline
                                 </NavLink>
+                                <NavLink :href="route('family-members.index')" :active="route().current('family-members.*') || route().current('family.tree') || route().current('family-relationships.*')">
+                                    Family
+                                </NavLink>
                             </div>
                         </div>
 
@@ -199,6 +202,9 @@ const logout = () => {
                         </ResponsiveNavLink>
                         <ResponsiveNavLink :href="route('timeline.index')" :active="route().current('timeline.*')">
                             Timeline
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('family-members.index')" :active="route().current('family-members.*') || route().current('family.tree') || route().current('family-relationships.*')">
+                            Family
                         </ResponsiveNavLink>
                     </div>
 

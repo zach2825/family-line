@@ -19,9 +19,6 @@ const error = ref('');
 const followUpQuestion = ref(null);
 const parsedData = ref(null);
 
-// Debounce timer
-let debounceTimer = null;
-
 const parseInput = async () => {
     if (!inputText.value || inputText.value.length < 5) {
         return;
@@ -70,15 +67,7 @@ const getFollowUp = async (currentData, missingFields) => {
     }
 };
 
-const handleInput = () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-        parseInput();
-    }, 1500); // Longer debounce since we have a manual button
-};
-
 const parseNow = () => {
-    clearTimeout(debounceTimer);
     parseInput();
 };
 
@@ -120,7 +109,6 @@ const clearInput = () => {
         <div class="relative">
             <textarea
                 v-model="inputText"
-                @input="handleInput"
                 rows="3"
                 class="w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-amber-500 dark:focus:border-amber-600 focus:ring-amber-500 dark:focus:ring-amber-600 rounded-lg shadow-sm resize-none"
                 placeholder="Describe your event naturally, e.g., 'Mom's 50th birthday party at Grandma's house with the whole family'"

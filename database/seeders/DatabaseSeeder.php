@@ -24,5 +24,8 @@ class DatabaseSeeder extends Seeder
 
         // Run Bouncer seeder
         $this->call(BouncerSeeder::class);
+
+        // Seed families with members, relationships, and timeline entries
+        $this->call(FamilySeeder::class);
     }
 }

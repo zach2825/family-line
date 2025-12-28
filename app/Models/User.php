@@ -11,6 +11,7 @@ use Laravel\Jetstream\HasProfilePhoto;
 use Laravel\Jetstream\HasTeams;
 use Laravel\Sanctum\HasApiTokens;
 use Silber\Bouncer\Database\HasRolesAndAbilities;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable
 {
@@ -68,5 +69,35 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get the family member record linked to this user for the current team.
+     */
+    public function familyMember(): HasOne
+    {
+        return $this->hasOne(FamilyMember::class);
+    }
+
+    /**
+     * Get the family member record for a specific team.
+     */
+    public function familyMemberForTeam(int $teamId): ?FamilyMember
+    {
+        return FamilyMember::where('user_id', $this->id)
+            ->where('team_id', $teamId)
+            ->first();
+    }
+
+    /**
+     * Get the family member record for the current team.
+     */
+    public function currentFamilyMember(): ?FamilyMember
+    {
+        if (!$this->currentTeam) {
+            return null;
+        }
+
+        return $this->familyMemberForTeam($this->currentTeam->id);
     }
 }

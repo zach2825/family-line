@@ -37,7 +37,10 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            //
+            // Share the current user's family member record (if linked)
+            'currentFamilyMember' => fn () => $request->user()
+                ? $request->user()->currentFamilyMember()
+                : null,
         ];
     }
 }

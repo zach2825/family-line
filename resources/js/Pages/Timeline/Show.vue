@@ -104,9 +104,30 @@ const getEventTypeColor = (type) => {
                             </div>
                         </div>
 
-                        <!-- People Involved -->
+                        <!-- Family Members Involved -->
+                        <div v-if="entry.family_members?.length" class="mb-6">
+                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Family Members</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <Link
+                                    v-for="member in entry.family_members"
+                                    :key="member.id"
+                                    :href="route('family-members.show', member.id)"
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-800 transition"
+                                >
+                                    <span
+                                        v-if="member.photo_path"
+                                        class="w-5 h-5 rounded-full overflow-hidden mr-2 -ml-1"
+                                    >
+                                        <img :src="`/storage/${member.photo_path}`" class="w-full h-full object-cover" />
+                                    </span>
+                                    {{ member.nickname || `${member.first_name} ${member.last_name || ''}`.trim() }}
+                                </Link>
+                            </div>
+                        </div>
+
+                        <!-- People Involved (text-based, fallback) -->
                         <div v-if="entry.people_involved?.length" class="mb-6">
-                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">People Involved</h3>
+                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Other People</h3>
                             <div class="flex flex-wrap gap-2">
                                 <span
                                     v-for="person in entry.people_involved"
